@@ -1,0 +1,894 @@
+---
+description: Backend development standards, best practices, and conventions for Ruby on Rails applications including Domain-Driven Design, SOLID principles, architecture patterns, API design, and testing practices
+globs: ["backend/app/**/*.rb", "backend/db/**/*.{rb,migrate}", "backend/spec/**/*.{rb}", "backend/config/**/*.{rb,yml}", "backend/Gemfile", "backend/Rakefile"]
+alwaysApply: true
+---
+
+# Backend Project Standards and Best Practices (Ruby on Rails)
+
+## Table of Contents
+
+- [Overview](#overview)
+- [Technology Stack](#technology-stack)
+  - [Core Technologies](#core-technologies)
+  - [Database & ORM](#database--orm)
+  - [Testing Framework](#testing-framework)
+  - [Development Tools](#development-tools)
+- [Architecture Overview](#architecture-overview)
+  - [Domain-Driven Design (DDD)](#domain-driven-design-ddd)
+  - [Layered Architecture](#layered-architecture)
+  - [Project Structure](#project-structure)
+- [Domain-Driven Design Principles](#domain-driven-design-principles)
+  - [Entities](#entities)
+  - [Value Objects](#value-objects)
+  - [Aggregates](#aggregates)
+  - [Repositories](#repositories)
+  - [Domain Services](#domain-services)
+  - [Additional Recommendations](#additional-recommendations)
+- [SOLID and DRY Principles](#solid-and-dry-principles)
+  - [Single Responsibility Principle (SRP)](#single-responsibility-principle-srp)
+  - [Open/Closed Principle (OCP)](#openclosed-principle-ocp)
+  - [Liskov Substitution Principle (LSP)](#liskov-substitution-principle-lsp)
+  - [Interface Segregation Principle (ISP)](#interface-segregation-principle-isp)
+  - [Dependency Inversion Principle (DIP)](#dependency-inversion-principle-dip)
+  - [DRY (Don't Repeat Yourself)](#dry-dont-repeat-yourself)
+- [Coding Standards](#coding-standards)
+  - [Language and Naming Conventions](#language-and-naming-conventions)
+  - [Ruby Usage](#ruby-usage)
+  - [Error Handling](#error-handling)
+  - [Validation Patterns](#validation-patterns)
+  - [Logging Standards](#logging-standards)
+- [API Design Standards](#api-design-standards)
+  - [REST Endpoints](#rest-endpoints)
+  - [Request/Response Patterns](#requestresponse-patterns)
+  - [Error Response Format](#error-response-format)
+  - [CORS Configuration](#cors-configuration)
+- [Database Patterns](#database-patterns)
+  - [ActiveRecord Schema](#activerecord-schema)
+  - [Migrations](#migrations)
+  - [Repository Pattern](#repository-pattern)
+- [Testing Standards](#testing-standards)
+  - [Unit Testing](#unit-testing)
+  - [Integration Testing](#integration-testing)
+  - [Test Coverage Requirements](#test-coverage-requirements)
+  - [Mocking Standards](#mocking-standards)
+- [Performance Best Practices](#performance-best-practices)
+  - [Database Query Optimization](#database-query-optimization)
+  - [Async Patterns](#async-patterns)
+  - [Error Handling Performance](#error-handling-performance)
+- [Security Best Practices](#security-best-practices)
+  - [Input Validation](#input-validation)
+  - [Environment Variables](#environment-variables)
+  - [Dependency Injection](#dependency-injection)
+- [Development Workflow](#development-workflow)
+  - [Git Workflow](#git-workflow)
+  - [Development Scripts](#development-scripts)
+  - [Code Quality](#code-quality)
+- [Deployment](#deployment)
+  - [Heroku/AWS Configuration](#herokuaws-configuration)
+  - [Deployment Scripts](#deployment-scripts)
+
+---
+
+## Overview
+
+This document outlines the best practices, conventions, and standards used in backend applications built with Ruby on Rails. The backend follows Domain-Driven Design (DDD) principles and implements a layered architecture to ensure code consistency, maintainability, and scalability.
+
+## Technology Stack
+
+### Core Technologies
+- **Ruby**: Programming language
+- **Rails**: Web application framework
+- **ActiveRecord**: ORM for database access
+
+### Database & ORM
+- **MySQL**: Relational database (local installation recommended)
+- **ActiveRecord Migrations**: Database migration tool
+
+### Testing Framework
+- **RSpec**: Testing framework
+- **FactoryBot**: Test data factories
+- **Coverage Threshold**: 90% for branches, functions, lines, and statements
+- **Test Location**: `spec/` directory and `_spec.rb` files
+
+### Development Tools
+- **Rubocop**: Code linting
+- **Rails Console**: Interactive debugging
+- **Foreman**: Process management
+- **dotenv**: Environment variable management
+
+## Architecture Overview
+
+### Domain-Driven Design (DDD)
+
+Domain-Driven Design focuses on modeling software according to business logic and domain knowledge. Rails applications benefit from organizing code around domain concepts, using models, services, and value objects.
+
+**Benefits:**
+- **Improved Communication**: Promotes a common language between developers and domain experts.
+- **Clear Domain Models**: Models reflect business rules and processes.
+- **High Maintainability**: Dividing the system into subdomains facilitates maintenance and evolution.
+
+### Layered Architecture
+
+The backend follows a layered DDD architecture:
+
+**Presentation Layer** (`app/controllers/`)
+- Controllers handle HTTP requests/responses
+- Routes define API endpoints
+- Controllers use services from Application layer
+
+**Application Layer** (`app/services/`)
+- Services contain business logic and orchestration
+- Validators handle input validation
+- Strategies encapsulate interchangeable business logic, authentication, or API strategies (`app/strategies/`)
+- Services use repositories from Domain layer
+
+
+**Domain Layer** (`app/models/`)
+- Models define core business entities (Candidate, Position, Application, Interview, etc.)
+- Repository interfaces define data access contracts
+- Pure business logic without external dependencies
+
+**Infrastructure Layer** (implicit)
+- ActiveRecord handles database operations
+- Repository implementations satisfy domain interfaces
+
+### Project Structure
+
+```
+backend/
+├── app/
+│   ├── models/          # Domain entities
+│   ├── services/        # Business logic services
+│   ├── controllers/     # HTTP request handlers
+│   ├── validators/      # Input validation
+│   ├── strategies/      # Strategy pattern implementations (e.g., authentication, business logic, API strategies)
+│   ├── jobs/            # Background jobs
+│   └── mailers/         # Email handlers
+├── config/
+│   ├── routes.rb        # Route definitions
+│   ├── database.yml     # Database config
+│   └── environment/     # Environment configs
+├── db/
+│   ├── migrate/         # Database migrations
+│   └── schema.rb        # Database schema
+├── spec/
+│   ├── models/          # Model specs
+│   ├── controllers/     # Controller specs
+│   ├── services/        # Service specs
+│   ├── factories/       # FactoryBot factories
+│   └── support/         # Spec helpers
+├── Gemfile              # Dependencies
+├── Rakefile             # Rake tasks
+└── .env                 # Environment variables
+```
+
+## Domain-Driven Design Principles
+
+### Entities
+
+Entities are objects with a distinct identity that persists over time.
+
+**Before:**
+```ruby
+# Candidate data as a simple hash
+candidate = {
+  id: 1,
+  first_name: 'John',
+  last_name: 'Doe',
+  email: 'john.doe@example.com'
+}
+```
+
+**After:**
+```ruby
+class Candidate < ApplicationRecord
+  # Business logic methods
+  def full_name
+    "#{first_name} #{last_name}"
+  end
+end
+```
+
+**Best Practice**: Entities should encapsulate business logic related to their domain concept and maintain consistency of their internal state.
+
+### Value Objects
+
+Value Objects describe aspects of the domain without conceptual identity. They are defined by their attributes rather than an identifier.
+
+**Before:**
+```ruby
+# Education info as a simple hash
+education = {
+  institution: 'University',
+  degree: 'Bachelor',
+  start_date: '2010-01-01',
+  end_date: '2014-01-01'
+}
+```
+
+**After:**
+```ruby
+class Education
+  attr_reader :institution, :degree, :start_date, :end_date
+
+  def initialize(attrs)
+    @institution = attrs[:institution]
+    @degree = attrs[:degree]
+    @start_date = attrs[:start_date]
+    @end_date = attrs[:end_date]
+  end
+end
+```
+
+**Recommendation**: Use value objects for concepts like address, money, or education when identity is not required. Consider using Rails' `composed_of` for value objects in models.
+
+### Aggregates
+
+Aggregates are clusters of objects that must be treated as a unit. They have a root entity that enforces invariants and consistency boundaries.
+
+**Before:**
+```ruby
+# Candidate and education handled separately
+candidate = Candidate.find(1)
+educations = Education.where(candidate_id: 1)
+```
+
+**After:**
+```ruby
+class Candidate < ApplicationRecord
+  has_many :educations
+
+  def add_education(attrs)
+    educations.create(attrs)
+  end
+end
+```
+
+**Recommendation**: Aggregates should be carefully designed to ensure that all operations within the aggregate boundary maintain consistency. Operations that affect `Education` and `WorkExperience` should be handled through the aggregate root, `Candidate`.
+
+### Repositories
+
+Repositories provide interfaces for accessing aggregates and entities, encapsulating data access logic.
+
+**Before:**
+```ruby
+# Direct database access
+Candidate.find_by(id: 1)
+```
+
+**After:**
+```ruby
+class CandidateRepository
+  def find_by_id(id)
+    Candidate.find_by(id: id)
+  end
+
+  def save(candidate)
+    candidate.save
+  end
+end
+```
+
+**Recommendation**: Use repository classes for complex queries and business logic that should not reside in models or controllers.
+
+### Domain Services
+
+Domain Services contain business logic that doesn't naturally belong to an entity or value object.
+
+**Before:**
+```ruby
+def calculate_age(candidate)
+  today = Date.today
+  birth_date = candidate.birth_date
+  age = today.year - birth_date.year
+  age -= 1 if today < birth_date + age.years
+  age
+end
+```
+
+**After:**
+```ruby
+class CandidateService
+  def self.calculate_age(candidate)
+    today = Date.today
+    birth_date = candidate.birth_date
+    age = today.year - birth_date.year
+    age -= 1 if today < birth_date + age.years
+    age
+  end
+end
+```
+
+**Recommendation**: Use service objects for business logic that spans multiple models or does not fit naturally in a single model.
+
+### Additional Recommendations
+
+**Use of Factories**
+- Use FactoryBot for creating test data and complex objects in tests.
+
+**Improvement in Relationship Modeling**
+- Use Rails associations (`has_many`, `belongs_to`, etc.) to model relationships clearly.
+
+**Domain Events Integration**
+- Use ActiveSupport::Notifications or custom event classes for domain events.
+
+## SOLID and DRY Principles
+
+### SOLID Principles
+
+#### Single Responsibility Principle (SRP)
+Each class should have a single responsibility or reason to change.
+
+**Before:**
+```ruby
+def process_candidate(candidate)
+  raise 'Invalid email' unless candidate.email.include?('@')
+  candidate.save
+  puts 'Candidate saved'
+end
+```
+
+**After:**
+```ruby
+class Candidate < ApplicationRecord
+  def validate_email!
+    raise 'Invalid email' unless email.include?('@')
+  end
+end
+
+class CandidateRepository
+  def save(candidate)
+    candidate.validate_email!
+    candidate.save
+  end
+end
+```
+
+#### Open/Closed Principle (OCP)
+Software entities should be open for extension but closed for modification.
+
+**Before:**
+```ruby
+class Candidate
+  def save_to_database
+    # save logic
+  end
+  def send_email
+    # send email logic
+  end
+end
+```
+
+**After:**
+```ruby
+class Candidate
+  def save_to_database
+    # save logic
+  end
+end
+
+class CandidateWithEmail < Candidate
+  def send_email
+    # send email logic
+  end
+end
+```
+
+#### Liskov Substitution Principle (LSP)
+Objects of a derived class should be replaceable with objects of the base class without altering the program's functionality.
+
+**Before:**
+```ruby
+class TemporaryCandidate < Candidate
+  def save_to_database
+    raise "Temporary candidates can't be saved."
+  end
+end
+```
+
+**After:**
+```ruby
+class TemporaryCandidate < Candidate
+  def save_to_database
+    # Handle temporary logic
+    puts "Handled temporarily"
+  end
+end
+```
+
+#### Interface Segregation Principle (ISP)
+Many specific interfaces are better than a single general interface.
+
+Ruby uses modules for interface segregation:
+```ruby
+module SaveOperation
+  def save; end
+end
+
+module EmailOperations
+  def send_email; end
+end
+
+class Candidate
+  include SaveOperation
+  include EmailOperations
+
+  def save
+    # implementation
+  end
+  def send_email
+    # implementation
+  end
+end
+```
+
+#### Dependency Inversion Principle (DIP)
+High-level modules should not depend on low-level modules; both should depend on abstractions.
+
+**Before:**
+```ruby
+class Candidate
+  def save
+    ActiveRecord::Base.connection.execute(...)
+  end
+end
+```
+
+**After:**
+```ruby
+class Candidate
+  def initialize(repository)
+    @repository = repository
+  end
+  def save
+    @repository.save(self)
+  end
+end
+```
+
+### DRY (Don't Repeat Yourself)
+
+Centralize repeated logic in methods or modules.
+
+**Before:**
+```ruby
+def save_candidate(candidate)
+  raise 'Invalid email' unless candidate.email.include?('@')
+  candidate.save
+end
+
+def update_candidate(candidate)
+  raise 'Invalid email' unless candidate.email.include?('@')
+  candidate.update
+end
+```
+
+**After:**
+```ruby
+class Candidate < ApplicationRecord
+  def validate_email!
+    raise 'Invalid email' unless email.include?('@')
+  end
+  def save
+    validate_email!
+    super
+  end
+  def update(attrs)
+    validate_email!
+    super(attrs)
+  end
+end
+```
+
+## Coding Standards
+
+### Naming Conventions
+- **Variable Naming**: Use snake_case for variables and methods (e.g., `candidate_id`, `find_candidate_by_id`)
+- **Class Naming**: Use CamelCase for classes and modules (e.g., `Candidate`, `CandidateRepository`)
+- **Constants Naming**: Use SCREAMING_SNAKE_CASE for constants (e.g., `MAX_CANDIDATES_PER_PAGE`)
+- **File Naming**: Use snake_case for file names (e.g., `candidate_service.rb`, `candidate_controller.rb`)
+
+**Examples:**
+```ruby
+# Good: All in English
+class CandidateRepository
+  def find_by_id(candidate_id)
+    Candidate.find_by(id: candidate_id)
+  end
+end
+
+# Avoid: Non-English comments or names
+class RepositorioCandidato
+  def buscar_por_id(id_candidato)
+    Candidate.find_by(id: id_candidato)
+  end
+end
+```
+
+**Error Messages and Logs:**
+```ruby
+# Good: English error messages
+raise NotFoundError, 'Candidate not found with the provided ID'
+Rails.logger.error('Failed to create candidate', error: error.message)
+
+# Avoid: Non-English messages
+raise NotFoundError, 'Candidato no encontrado con el ID proporcionado'
+Rails.logger.error('Error al crear candidato', error: error.message)
+```
+
+### Ruby Usage
+- **Use Explicit Types**: Prefer explicit types in method signatures and documentation
+- **Avoid `Object`**: Use specific types when possible
+- **Use Modules**: For shared behavior
+
+### Error Handling
+- **Custom Error Classes**: Create domain-specific error classes
+- **Error Middleware**: Use Rails rescue_from for consistent error responses
+- **Error Messages**: Provide descriptive error messages for debugging
+
+```ruby
+class NotFoundError < StandardError; end
+
+# In controller
+rescue_from NotFoundError do |error|
+  render json: { success: false, error: { message: error.message, code: 'NOT_FOUND' } }, status: :not_found
+end
+```
+
+### Validation Patterns
+- **Input Validation**: Validate all inputs at the model and service layer
+- **Use ActiveModel::Validations**: Centralize validation logic in models or validators
+- **Validate Before Processing**: Always validate before executing business logic
+
+```ruby
+class Candidate < ApplicationRecord
+  validates :email, presence: true, format: { with: URI::MailTo::EMAIL_REGEXP }
+end
+```
+
+### Logging Standards
+- **Use Rails Logger**: Use the centralized logger
+- **Log Levels**: Use appropriate log levels (info, error, warn, debug)
+- **Structured Logging**: Include relevant context in log messages
+
+```ruby
+Rails.logger.info('Candidate created', candidate_id: candidate.id)
+Rails.logger.error('Failed to create candidate', error: error.message)
+```
+
+## API Design Standards
+
+### REST Endpoints
+- **RESTful Naming**: Use RESTful conventions for endpoint naming
+- **HTTP Methods**: Use appropriate HTTP methods (GET, POST, PUT, DELETE, PATCH)
+- **Resource-Based URLs**: URLs should represent resources, not actions
+
+```ruby
+GET    /candidates          # List candidates
+GET    /candidates/:id      # Get candidate by ID
+POST   /candidates          # Create new candidate
+PUT    /candidates/:id      # Update candidate
+DELETE /candidates/:id      # Delete candidate
+```
+
+### Request/Response Patterns
+- **JSON Format**: Use JSON for request and response bodies
+- **Consistent Structure**: Maintain consistent response structure across all endpoints
+- **Status Codes**: Use appropriate HTTP status codes
+
+```ruby
+# Success response
+{
+  "success": true,
+  "data": { ... },
+  "message": "Operation completed successfully"
+}
+
+# Error response
+{
+  "success": false,
+  "error": {
+    "message": "Error description",
+    "code": "ERROR_CODE"
+  }
+}
+```
+
+### Error Response Format
+- **Consistent Format**: All errors should follow the same response structure
+- **Error Codes**: Use meaningful error codes for different error types
+- **HTTP Status Codes**: Map errors to appropriate HTTP status codes
+
+```ruby
+# 400 Bad Request
+{
+  "success": false,
+  "error": {
+    "message": "Validation failed",
+    "code": "VALIDATION_ERROR",
+    "details": [ ... ]
+  }
+}
+
+# 404 Not Found
+{
+  "success": false,
+  "error": {
+    "message": "Resource not found",
+    "code": "NOT_FOUND"
+  }
+}
+```
+
+### CORS Configuration
+- **Enable CORS**: Configure CORS to allow frontend origin
+- **Secure Configuration**: Only allow specific origins in production
+- **Credentials**: Configure credentials handling appropriately
+
+```ruby
+# config/initializers/cors.rb
+Rails.application.config.middleware.insert_before 0, Rack::Cors do
+  allow do
+    origins ENV.fetch('FRONTEND_URL', 'http://localhost:3000')
+    resource '*', headers: :any, methods: [:get, :post, :put, :patch, :delete, :options], credentials: true
+  end
+end
+```
+
+## Database Patterns
+
+### ActiveRecord Schema
+- **Single Source of Truth**: `db/schema.rb` is the single source of truth for database structure
+- **Relationships**: Define relationships using Rails associations
+- **Naming Conventions**: Use consistent naming conventions (snake_case for fields, CamelCase for models)
+
+### Migrations
+- **Version Control**: All database changes must be version-controlled through migrations
+- **Migration Naming**: Use descriptive names for migrations
+- **Review Migrations**: Review migration files before applying
+
+```bash
+# Create migration
+rails generate migration AddFieldToCandidates field_name:string
+
+# Apply migrations
+rails db:migrate
+```
+
+### Repository Pattern
+- **Repository Classes**: Use repository classes for complex queries
+- **ActiveRecord Implementation**: Implement repositories using ActiveRecord
+- **Dependency Injection**: Inject repositories into services
+
+```ruby
+class CandidateRepository
+  def initialize(relation = Candidate.all)
+    @relation = relation
+  end
+  def find_by_id(id)
+    @relation.find_by(id: id)
+  end
+end
+```
+
+## Testing Standards
+
+### Test File Structure
+- Use descriptive test file names: `[component_name]_spec.rb`
+- Place test files in the `spec/` directory
+- Use RSpec as the testing framework
+- Maintain 90% coverage threshold for branches, functions, lines, and statements
+
+### Test Organization Pattern
+Template:
+```ruby
+describe '[ComponentName] - [method_name]' do
+  before(:each) { allow_any_instance_of(...).to receive(:...).and_return(...) }
+
+  context 'when [condition]' do
+    it 'does [expected behavior]' do
+      # Arrange
+      # Act
+      # Assert
+    end
+  end
+end
+```
+
+### Test Case Naming Convention
+- Use descriptive, behavior-driven naming: `does_[expected_behavior]_when_[condition]`
+- Group related test cases under descriptive `describe` blocks
+- Use snake_case for describe/context blocks and method names
+
+### Test Structure (AAA Pattern)
+Always follow the Arrange-Act-Assert pattern:
+```ruby
+it 'updates candidate stage successfully when valid data provided' do
+  # Arrange - Set up test data and mocks
+  candidate = create(:candidate)
+  application = create(:application, candidate: candidate)
+  new_interview_step = 2
+
+  # Act - Execute the function under test
+  result = CandidateService.update_stage(candidate.id, application.id, new_interview_step)
+
+  # Assert - Verify the expected behavior
+  expect(result).to eq(expected_result)
+end
+```
+
+### Mocking Standards
+- Mock all external dependencies (models, services, database clients)
+- Use FactoryBot for test data
+- Use RSpec mocks for service and repository layers
+- Clear all mocks in `before(:each)` to ensure test isolation
+
+### Test Coverage Requirements
+- **Comprehensive test coverage**: Include these test categories for each function:
+  1. **Happy Path Tests**: Valid inputs producing expected outputs
+  2. **Error Handling Tests**: Invalid inputs, missing data, database errors
+  3. **Edge Cases**: Boundary values, nil/empty data
+  4. **Validation Tests**: Input validation, business rule enforcement
+  5. **Integration Points**: External service calls, database operations
+- **Threshold**: 90% for branches, functions, lines, and statements
+- **Coverage Reports**: Generate coverage reports with `bundle exec rspec --format documentation --coverage`
+- **Coverage Files**: Coverage reports in `coverage/` directory adding the date, like YYYYMMDD-backend-coverage.md
+
+### Error Testing
+- Test both expected errors and unexpected errors
+- Verify error messages are descriptive and helpful
+- Test error propagation through service layers
+- Ensure proper HTTP status codes in controller tests
+
+### Controller Testing Specifics
+- Mock the service layer completely
+- Test HTTP request/response handling
+- Verify parameter parsing and validation
+- Test error response formatting
+- Use realistic Rails request/response mocks
+
+### Service Testing Specifics
+- Mock domain models and repositories
+- Test business logic in isolation
+- Verify data transformation and validation
+- Test error handling and edge cases
+- Mock external dependencies
+
+### Database Testing
+- Mock ActiveRecord and all database operations
+- Test both successful and failed database operations
+- Verify correct database queries and parameters
+- Test transaction handling and rollback scenarios
+
+### Async Testing
+- Use `ActiveJob::TestHelper` for background jobs
+- Properly handle exceptions in async operations
+- Test timeout scenarios where applicable
+
+### Test Data Management
+- Use FactoryBot for creating test data
+- Keep test data consistent and realistic
+- Avoid hardcoded values in multiple places
+- Use meaningful test data that reflects real-world scenarios
+
+### Integration Testing
+- **Controller Testing**: Test HTTP request/response handling
+- **Database Testing**: Test repository implementations with database
+- **End-to-End Flow**: Test complete request flows
+
+### Code Quality Standards
+- Use strict typing in documentation and method signatures
+- Define proper modules for mock data
+- Use type assertions sparingly and with proper justification
+- Leverage Ruby's type system for better test reliability
+- Write clear, descriptive test names that explain the scenario
+- Add comments for complex test setups
+- Document any special test conditions or edge cases
+- Keep test code as readable as production code
+- Keep tests fast and focused
+- Avoid unnecessary async operations in tests
+- Use appropriate mock strategies to avoid real I/O
+- Group related tests to minimize setup/teardown overhead
+
+### Integration with Development Workflow
+- Run tests before every commit
+- Ensure all tests pass before merging
+- Use test-driven development when appropriate
+- Update tests when modifying existing functionality
+
+### Common Anti-Patterns to Avoid
+- Don't test implementation details, test behavior
+- Don't create overly complex test setups
+- Don't ignore failing tests or skip error scenarios
+- Don't use real database connections in unit tests
+- Don't create tests that depend on external services
+- Don't write tests that are too tightly coupled to implementation
+
+## Performance Best Practices
+
+### Database Query Optimization
+- **Select Specific Fields**: Only select fields that are needed
+- **Use Indexes**: Ensure proper database indexes for frequently queried fields
+- **Avoid N+1 Queries**: Use Rails' `includes` to fetch related data efficiently
+
+```ruby
+# Good: Fetch related data efficiently
+candidate = Candidate.includes(:educations, :work_experiences).find(id)
+
+# Avoid: N+1 queries
+candidate = Candidate.find(id)
+educations = candidate.educations.to_a
+```
+
+### Async Patterns
+- **Always Use ActiveJob for Background Tasks**
+- **Error Handling**: Properly handle errors in async operations
+- **Parallel Operations**: Use Sidekiq or similar for parallel jobs
+
+### Error Handling Performance
+- **Early Returns**: Return early to avoid unnecessary processing
+- **Error Propagation**: Let errors propagate naturally through the call stack
+- **Avoid Over-Wrapping**: Don't wrap errors unnecessarily
+
+## Security Best Practices
+
+### Input Validation
+- **Validate All Inputs**: Validate all user inputs before processing
+- **Sanitize Data**: Sanitize data to prevent injection attacks
+- **Type Checking**: Use model validations and strong parameters
+
+### Environment Variables
+- **Never Commit Secrets**: Never commit `.env` files or secrets to version control
+- **Use Environment Variables**: Use environment variables for configuration
+- **Validate Environment**: Validate required environment variables at startup
+
+```ruby
+# config/initializers/check_env.rb
+required_env_vars = %w[DATABASE_URL SECRET_KEY_BASE]
+missing = required_env_vars.select { |var| ENV[var].blank? }
+raise "Missing required environment variables: #{missing.join(', ')}" if missing.any?
+```
+
+### Dependency Injection
+- **Inject Repositories and Services**: Use dependency injection for testability
+- **Avoid Global State**: Avoid global state for database connections
+- **Testability**: Use dependency injection to improve testability
+
+## Development Workflow
+
+### Git Workflow
+- **Feature Branches**: Develop features in separate branches, adding descriptive suffix "-backend" to allow working in parallel and avoid conflicts or collisions
+- **Descriptive Commits**: Write descriptive commit messages in English
+- **Code Review**: Code review before merging
+- **Small Branches**: Keep branches small and focused
+
+### Development Scripts
+```bash
+bin/rails server         # Development server
+bin/rails db:migrate     # Apply migrations
+bin/rails test           # Run tests
+bundle exec rspec        # Run RSpec tests
+bundle exec rubocop      # Run Rubocop linting
+```
+
+### Code Quality
+- **Rubocop Validation**: Run Rubocop before commits
+- **Rails Compilation**: Ensure Rails app boots without errors
+- **All Tests Passing**: Ensure all tests pass before deployment
+- **Code Review**: Review code for adherence to standards
+
+## Deployment
+
+### Heroku/AWS Configuration
+- **Environment Variables**: Configure environment variables in Heroku or AWS
+- **Database Setup**: Ensure database is provisioned and migrated
+- **Asset Compilation**: Compile assets before deployment
+
+### Deployment Scripts
+```bash
+git push heroku main         # Deploy to Heroku
+bundle exec cap production deploy # Deploy with Capistrano
+```
+
+This document serves as the foundation for maintaining code quality and consistency across backend Ruby on Rails applications. All team members should follow these practices to ensure a maintainable, scalable, and testable codebase.
